@@ -1,52 +1,54 @@
 require('dotenv').config();
 
-
 const Hapi = require('@hapi/hapi');
-const routes = require('../server/routes');
+const routes = require('../server/routes'); // Import semua routes
 const loadModel = require('../services/loadModel');
 const InputError = require('../exceptions/InputError');
-require('dotenv').config();
 
-const apiKey = process.env.API_KEY;  // Mengakses API key dari file .env
-console.log(apiKey);
-
+const apiKey = process.env.API_KEY; // Mengakses API key dari file .env
+console.log(`API Key: ${apiKey}`);
 
 (async () => {
     const server = Hapi.server({
-        port: 8080,
+        port: 3000,
         host: '0.0.0.0',
         routes: {
             cors: {
-              origin: ['*'],
+                origin: ['*'], // Mengizinkan akses dari semua origin
             },
         },
-    })
+    });
 
+    // Memuat model TensorFlow
     const model = await loadModel();
     server.app.model = model;
 
-    server.route(routes);  
-    server.ext('onPreResponse', function (request, h) {
+    // Menambahkan routes ke server
+    console.log('Registering routes:', routes);
+    server.route(routes);
+
+    // Middleware untuk menangani error
+    server.ext('onPreResponse', (request, h) => {
         const response = request.response;
         if (response instanceof InputError) {
             const newResponse = h.response({
                 status: 'fail',
-                message: `${response.message}`
-            })
-            newResponse.code(response.statusCode)
+                message: `${response.message}`,
+            });
+            newResponse.code(response.statusCode);
             return newResponse;
         }
         if (response.isBoom) {
             const newResponse = h.response({
                 status: 'fail',
-                message: response.message
+                message: response.message,
             });
             newResponse.code(response.output.statusCode);
             return newResponse;
         }
         return h.continue;
     });
- 
+
     await server.start();
-    console.log(`Server start at: ${server.info.uri}`);
+    console.log(`Server running at: ${server.info.uri}`);
 })();
